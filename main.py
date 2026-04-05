@@ -9,6 +9,23 @@ from deepl import version
 auth_key = "REMOVED_DEEPL_KEY"
 translator = deepl.Translator(auth_key)
 
+root = tk.Tk()
+root.title("Anki Deck")
+
+
+def get_lines():
+    all_content = text_box.get("1.0", "end-1c")
+    lines_array = all_content.split('\n')
+
+    print(lines_array)
+    for line in lines_array:
+        print(f"Line: {line}")
+
+text_box = tk.Text(root, height=10, width=40)
+text_box.pack(pady=10)
+
+btn = tk.Button(root, text="Read Input", command=get_lines)
+btn.pack()
 
 
 my_css = """
@@ -125,6 +142,8 @@ notes = [
 
 for note in notes:
     my_deck.add_note(note)
+
+root.mainloop()
 
 package_path = os.path.abspath("japanese_deck.apkg")
 

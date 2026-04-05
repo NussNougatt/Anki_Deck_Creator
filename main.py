@@ -58,19 +58,68 @@ def auto_import(path):
         print("Error connecting to Anki:", e)
 
 
-my_note = genanki.Note(
-    model=my_model,
-    fields=['定義する[ていぎ]', 'definieren']
-)
-
 my_deck = genanki.Deck(
     1111111111,
     'KGU_Japanese'
 )
 
-my_deck.add_note(my_note)
+def deck_exists(deckName):
+    payload = {
+        "action": "getDeckNames",
+        "version": 6,
+    }
+    try:
+        response = requests.post("http://localhost:8765", json=payload)
+        deck_names = response.json()
+        return deckName in deck_names
+    except Exception as e:
+        print("Error connecting to Anki:", e)
+        return False
 
-genanki.Package(my_deck).write_to_file('japanese_deck.apkg')
+def add_notes_to_deck(deckName, notes):
+    anki_notes = []
+    for note in notes:
+        anki_notes.append({
+            "deckName": deckName,
+            "modelName": "Anki Deck",
+            "fields":{
+                "Front": note.fields[0],
+                "Back": note.fields[1],
+            },
+            "options":{
+                "allowDuplicates": False,
+            }
+        })
+    payload = {
+        "action": "addNotes",
+        "version": 6,
+        "params": {"notes": anki_notes}
+    }
+    try:
+        response = requests.post("http://localhost:8765", json=payload)
+        print("Notes added:", response.json())
+    except Exception as e:
+        print("Error connecting to Anki:", e)
+
+
+def create_or_update_deck(deck, notes, package_path):
+    deck_name = deck.name
+
+    if deck_exists(deck_name):
+        print(f"Deck '{deck_name}' already exists. Adding new cards...")
+        add_notes_to_deck(notes, deck_name)
+    else:
+        print(f"Deck '{deck_name}' not found. Creating new deck...")
+        genanki.Package(deck).write_to_file(package_path)
+        auto_import(os.path.abspath(package_path))
+
+notes = [
+    genanki.Note(model=my_model, fields=["定義する", "definieren"]),
+]
+
+for note in notes:
+    my_deck.add_note(note)
 
 package_path = os.path.abspath("japanese_deck.apkg")
-auto_import(package_path)
+
+create_or_update_deck(my_deck, notes, package_path)

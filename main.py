@@ -4,15 +4,20 @@ import requests
 import os
 import tkinter as tk
 import pykakasi
-import keyboard
+import sys
 
 from deepl import version
 
 notes = []
 
+import sys
+
 def show_confirmation(deck_notes, on_confirm):
     confirm_window = tk.Toplevel(root)
     confirm_window.title("Confirm Cards")
+
+    # Closing the window terminates the program
+    confirm_window.protocol("WM_DELETE_WINDOW", sys.exit)
 
     tk.Label(confirm_window, text="The following cards will be added:", font=("Arial", 12, "bold")).pack(pady=5)
 
@@ -23,6 +28,8 @@ def show_confirmation(deck_notes, on_confirm):
     tk.Label(frame, text="Kanji", width=15, font=("Arial", 10, "bold"), anchor="w").grid(row=0, column=0, padx=5)
     tk.Label(frame, text="Furigana", width=20, font=("Arial", 10, "bold"), anchor="w").grid(row=0, column=1, padx=5)
     tk.Label(frame, text="Translation", width=20, font=("Arial", 10, "bold"), anchor="w").grid(row=0, column=2, padx=5)
+
+    translation_entries = []
 
     for i, note in enumerate(deck_notes):
         front = note.fields[0]
@@ -35,15 +42,35 @@ def show_confirmation(deck_notes, on_confirm):
             kanji = front
             furigana = front
 
-        tk.Label(frame, text=kanji, width=15, anchor="w").grid(row=i+1, column=0, padx=5, pady=2)
-        tk.Label(frame, text=furigana, width=20, anchor="w").grid(row=i+1, column=1, padx=5, pady=2)
-        tk.Label(frame, text=back, width=20, anchor="w").grid(row=i+1, column=2, padx=5, pady=2)
+        # Read-only but selectable Entry for kanji
+        kanji_entry = tk.Entry(frame, width=15)
+        kanji_entry.insert(0, kanji)
+        kanji_entry.config(state="readonly")
+        kanji_entry.grid(row=i+1, column=0, padx=5, pady=2)
+
+        # Read-only but selectable Entry for furigana
+        furigana_entry = tk.Entry(frame, width=20)
+        furigana_entry.insert(0, furigana)
+        furigana_entry.config(state="readonly")
+        furigana_entry.grid(row=i+1, column=1, padx=5, pady=2)
+
+        # Editable translation
+        trans_entry = tk.Entry(frame, width=25)
+        trans_entry.insert(0, back)
+        trans_entry.grid(row=i+1, column=2, padx=5, pady=2)
+        translation_entries.append((i, trans_entry))
+
+    def on_confirm_click():
+        for i, entry in translation_entries:
+            deck_notes[i].fields[1] = entry.get()
+        confirm_window.destroy()
+        on_confirm()
 
     btn_frame = tk.Frame(confirm_window)
     btn_frame.pack(pady=10)
 
-    tk.Button(btn_frame, text="Confirm", command=lambda: [confirm_window.destroy(), on_confirm()]).pack(side="left", padx=10)
-    tk.Button(btn_frame, text="Cancel", command=confirm_window.destroy).pack(side="left", padx=10)
+    tk.Button(btn_frame, text="Confirm", command=on_confirm_click).pack(side="left", padx=10)
+    tk.Button(btn_frame, text="Cancel", command=sys.exit).pack(side="left", padx=10)  # Cancel also exits
 
 def get_furigana(text):
     kks = pykakasi.kakasi()
@@ -63,6 +90,7 @@ translator = deepl.Translator(auth_key)
 
 root = tk.Tk()
 root.title("Anki Deck")
+root.protocol("WM_DELETE_WINDOW", sys.exit)
 
 
 def get_lines(deck_notes):
@@ -167,30 +195,41 @@ def deck_exists(deck_name):
 
 
 def add_notes_to_deck(deck_name, deck_notes):
-    model_name = get_deck_model_name(deck_name)  # <-- fetch dynamically
-    anki_notes = []
+    model_name = get_deck_model_name(deck_name)
+    added = 0
+    skipped = 0
+
     for deck_note in deck_notes:
-        anki_notes.append({
-            "deckName": deck_name,
-            "modelName": model_name,
-            "fields": {
-                "Front": deck_note.fields[0],
-                "Back": deck_note.fields[1],
-            },
-            "options": {
-                "allowDuplicates": False,
+        payload = {
+            "action": "addNote",  # singular, not addNotes
+            "version": 6,
+            "params": {
+                "note": {
+                    "deckName": deck_name,
+                    "modelName": model_name,
+                    "fields": {
+                        "Front": deck_note.fields[0],
+                        "Back": deck_note.fields[1],
+                    },
+                    "options": {
+                        "allowDuplicate": False,
+                    }
+                }
             }
-        })
-    payload = {
-        "action": "addNotes",
-        "version": 6,
-        "params": {"notes": anki_notes}
-    }
-    try:
-        response = requests.post("http://localhost:8765", json=payload)
-        print("Notes added:", response.json())
-    except Exception as e:
-        print("Error connecting to Anki:", e)
+        }
+        try:
+            response = requests.post("http://localhost:8765", json=payload)
+            result = response.json()
+            if result.get("error"):
+                print(f"Skipped (duplicate): {deck_note.fields[0]}")
+                skipped += 1
+            else:
+                print(f"Added: {deck_note.fields[0]}")
+                added += 1
+        except Exception as e:
+            print("Error connecting to Anki:", e)
+
+    print(f"\nDone: {added} added, {skipped} skipped.")
 
 
 def create_or_update_deck(deck, deck_notes, path):

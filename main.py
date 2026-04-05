@@ -3,8 +3,18 @@ import genanki
 import requests
 import os
 import tkinter as tk
+import pykakasi
 
 from deepl import version
+
+def get_furigana(text):
+    kks = pykakasi.kakasi()
+    result = kks.convert(text)
+
+    furigana = "".join([item['hira'] for item in result])
+    return furigana
+
+#print(get_furigana("定義する"))
 
 auth_key = "REMOVED_DEEPL_KEY"
 translator = deepl.Translator(auth_key)
@@ -19,7 +29,9 @@ def get_lines():
 
     print(lines_array)
     for line in lines_array:
-        print(f"Line: {line}")
+        result = translator.translate_text(line, target_lang="DE")
+        print(result.text)
+    root.destroy()
 
 text_box = tk.Text(root, height=10, width=40)
 text_box.pack(pady=10)

@@ -2,8 +2,14 @@ import deepl
 import genanki
 import requests
 import os
+import tkinter as tk
 
 from deepl import version
+
+auth_key = "REMOVED_DEEPL_KEY"
+translator = deepl.Translator(auth_key)
+
+
 
 my_css = """
 .card {

@@ -85,7 +85,7 @@ def get_furigana(text):
     return furigana_field
 
 
-auth_key = "REMOVED_DEEPL_KEY"
+auth_key = os.environ["DEEPL_AUTH_KEY"]
 translator = deepl.Translator(auth_key)
 
 root = tk.Tk()
